@@ -1,0 +1,58 @@
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Java / Maven
+**/target/
+*.class
+
+# React / Node
+**/node_modules/
+**/dist/
+**/.vite/
+
+# Local databases
+database/*.db
+database/*.sqlite
+database/*.sqlite3
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Generated diagnostic reports
+network_engine/diagnostic_report.json
+
+# Backup scripts
+network_engine/diagnostics_backup_before_v2.py
+
+# Downloaded executable tools
+network_engine/tools/ookla/
+network_engine/tools/ookla_fresh/
+
+# ZIP archives
+_backend.zip
+*.zip
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -124,7 +124,7 @@ NetSense-AI/
 
 ```bash
 git clone https://github.com/shreemsamriya-debug/-NetSense-AI.git
-cd -NetSense-AI
+cd NetSense-AI
 ```
 
 ### Step 2: Start the Backend

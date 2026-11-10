@@ -39,42 +39,6 @@ function parseJson(value, fallback = []) {
   }
 }
 
-// Convert a saved SQLite row into the same structure as a live report.
-function normalizeHistoryRow(item) {
-  const report = parseJson(item.full_report, null);
-
-  if (report && typeof report === "object") {
-    return { ...report, id: item.id };
-  }
-
-  return {
-    id: item.id,
-    timestamp: item.timestamp,
-    operating_system: item.operating_system,
-    local_network: {
-      gateway: item.gateway,
-      status: item.gateway_status,
-      average_latency_ms: item.gateway_latency_ms,
-    },
-    network_quality: {
-      average_latency_ms: item.latency_ms,
-      jitter_ms: item.jitter_ms,
-      packet_loss_percent: item.packet_loss_percent,
-    },
-    dns_test: {
-      status: item.dns_status,
-      resolution_time_ms: item.dns_resolution_time_ms,
-    },
-    internet_speed: {
-      download_mbps: item.download_mbps,
-      upload_mbps: item.upload_mbps,
-    },
-    diagnosis: parseJson(item.diagnosis, []),
-    possible_causes: parseJson(item.possible_causes, []),
-    recommendations: parseJson(item.recommendations, []),
-  };
-}
-
 function downloadJson(data, filename) {
   const blob = new Blob([JSON.stringify(data, null, 2)], {
     type: "application/json",
@@ -101,7 +65,7 @@ function Brand() {
   );
 }
 
-function Sidebar({ activePage, onNavigate, isRunning }) {
+function Sidebar({ activePage, onNavigate, isRunning, agentConnected }) {
   return (
     <aside className="sidebar">
       <Brand />
@@ -128,7 +92,13 @@ function Sidebar({ activePage, onNavigate, isRunning }) {
           <span className="status-dot" />
           <div>
             <strong>Local workspace</strong>
-            <small>{isRunning ? "Testing connection..." : "Diagnostic engine connected"}</small>
+            <small>
+              {isRunning
+                ? "Testing connection..."
+                : agentConnected
+                  ? "Local agent connected"
+                  : "Agent not connected"}
+            </small>
           </div>
         </div>
         <div className="sidebar-footer">NetSense AI · Prototype v0.3</div>
@@ -340,6 +310,7 @@ function WorkflowPanel() {
     </section>
   );
 }
+
 function OverviewPage({ diagnostics, isRunning, onRunDiagnosis }) {
   return (
     <>
@@ -386,7 +357,6 @@ function DetailCard({ label, value, note }) {
     </article>
   );
 }
-
 function DiagnosticsPage({ diagnostics, onRunDiagnosis, isRunning }) {
   const network = diagnostics?.network_quality || {};
   const local = diagnostics?.local_network || {};
@@ -401,6 +371,7 @@ function DiagnosticsPage({ diagnostics, onRunDiagnosis, isRunning }) {
         onRunDiagnosis={onRunDiagnosis}
         isRunning={isRunning}
       />
+
       <section className="metric-grid">
         <DetailCard label="External latency" value={formatMetric(network.average_latency_ms, "ms")} note="Round-trip time to 1.1.1.1" />
         <DetailCard label="Jitter" value={formatMetric(network.jitter_ms, "ms")} note="Variation between ping samples" />
@@ -421,6 +392,7 @@ function DiagnosticsPage({ diagnostics, onRunDiagnosis, isRunning }) {
           ]}
           emptyText="Run a diagnosis to collect gateway measurements."
         />
+
         <DataList
           title="DNS test"
           items={[
@@ -456,6 +428,7 @@ function ConnectionPage({ diagnostics, onRunDiagnosis, isRunning }) {
         onRunDiagnosis={onRunDiagnosis}
         isRunning={isRunning}
       />
+
       <section className="content-grid">
         <DataList title="Device to router" items={[
           `Default gateway: ${local.gateway || "Not detected"}`,
@@ -463,6 +436,7 @@ function ConnectionPage({ diagnostics, onRunDiagnosis, isRunning }) {
           `Gateway latency: ${formatMetric(local.average_latency_ms, "ms")}`,
           `Gateway packet loss: ${formatMetric(local.packet_loss_percent, "%")}`,
         ]} emptyText="Run a diagnosis to inspect the local connection." />
+
         <DataList title="Device to external network" items={[
           `Test destination: ${network.host || "1.1.1.1"}`,
           `External test: ${network.status || "No result"}`,
@@ -471,6 +445,7 @@ function ConnectionPage({ diagnostics, onRunDiagnosis, isRunning }) {
           `Packet loss: ${formatMetric(network.packet_loss_percent, "%")}`,
         ]} emptyText="Run a diagnosis to inspect external connectivity." />
       </section>
+
       <section style={{ marginTop: 20 }}>
         <DataList title="Name resolution" items={[
           `DNS domain: ${dns.domain || "example.com"}`,
@@ -478,6 +453,7 @@ function ConnectionPage({ diagnostics, onRunDiagnosis, isRunning }) {
           `Resolution time: ${formatMetric(dns.resolution_time_ms, "ms")}`,
         ]} emptyText="DNS results will appear after a diagnosis." />
       </section>
+
       <p className="metric-note" style={{ marginTop: 14 }}>
         Note: A failed ping alone does not prove a router or ISP fault; some networks filter ICMP traffic.
       </p>
@@ -579,6 +555,7 @@ function FingerprintPanel({ diagnostics }) {
           <h3 style={{ margin: 0 }}>Baseline learning progress</h3>
           <strong>{sampleCount} of {requiredSamples} samples</strong>
         </div>
+
         <div
           role="progressbar"
           aria-label="Baseline learning progress"
@@ -589,6 +566,7 @@ function FingerprintPanel({ diagnostics }) {
         >
           <div style={{ width: `${progress}%`, height: "100%", background: "#26966f", borderRadius: 20, transition: "width 200ms ease" }} />
         </div>
+
         <p className="metric-note" style={{ marginTop: 8 }}>
           {baselineReady
             ? `The baseline is ready. ${fingerprint.historical_samples_used ?? sampleCount} historical samples were used for this comparison.`
@@ -598,6 +576,7 @@ function FingerprintPanel({ diagnostics }) {
 
       <div style={{ marginTop: 24 }}>
         <h3>Current performance vs learned baseline</h3>
+
         <div style={{ overflowX: "auto", marginTop: 10 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
             <thead>
@@ -608,10 +587,12 @@ function FingerprintPanel({ diagnostics }) {
                 <th style={{ padding: "11px 9px", borderBottom: "1px solid var(--border-color, #e2e8f0)" }}>MAD</th>
               </tr>
             </thead>
+
             <tbody>
               {metrics.map((metric) => {
                 const current = fingerprint.metrics?.[metric.key];
                 const baseline = fingerprint.baselines?.[metric.key];
+
                 return (
                   <tr key={metric.key}>
                     <td style={{ padding: "11px 9px", borderBottom: "1px solid var(--border-color, #e2e8f0)" }}>{metric.label}</td>
@@ -628,6 +609,7 @@ function FingerprintPanel({ diagnostics }) {
 
       <div style={{ marginTop: 24 }}>
         <h3>Anomaly detection</h3>
+
         {anomalies.length > 0 ? (
           <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
             {anomalies.map((anomaly, index) => (
@@ -639,6 +621,7 @@ function FingerprintPanel({ diagnostics }) {
                   <strong>{anomaly.label || anomaly.metric || `Anomaly ${index + 1}`}</strong>
                   <span className="environment-tag">{String(anomaly.severity || "unclassified").toUpperCase()} SEVERITY</span>
                 </div>
+
                 <p style={{ margin: "10px 0 4px" }}>
                   Current: {formatMetric(anomaly.observed_value, anomalyUnit(anomaly.metric))}
                   {" · "}
@@ -662,6 +645,7 @@ function FingerprintPanel({ diagnostics }) {
             <h3 style={{ margin: 0 }}>Diagnostic evidence coverage</h3>
             <strong>{confidence.level?.toUpperCase() || "UNAVAILABLE"} · {confidence.score ?? "--"}%</strong>
           </div>
+
           <div
             role="progressbar"
             aria-label="Diagnostic evidence coverage"
@@ -672,6 +656,7 @@ function FingerprintPanel({ diagnostics }) {
           >
             <div style={{ width: `${coverageWidth}%`, height: "100%", background: "#5684d8", borderRadius: 20 }} />
           </div>
+
           <p className="metric-note" style={{ marginTop: 8 }}>
             {confidence.completed_checks ?? 0} of {confidence.total_checks ?? 0} diagnostic checks completed.
           </p>
@@ -688,6 +673,7 @@ function FingerprintPanel({ diagnostics }) {
     </section>
   );
 }
+
 function DiagnosisPage({ diagnostics, onRunDiagnosis, isRunning }) {
   return (
     <>
@@ -697,6 +683,7 @@ function DiagnosisPage({ diagnostics, onRunDiagnosis, isRunning }) {
         onRunDiagnosis={onRunDiagnosis}
         isRunning={isRunning}
       />
+
       <section className="content-grid">
         <DataList
           title="Observed evidence"
@@ -728,6 +715,7 @@ function RecommendationsPage({ diagnostics, onRunDiagnosis, isRunning }) {
         onRunDiagnosis={onRunDiagnosis}
         isRunning={isRunning}
       />
+
       <DataList
         title="Recommended actions"
         items={diagnostics?.recommendations || []}
@@ -736,237 +724,78 @@ function RecommendationsPage({ diagnostics, onRunDiagnosis, isRunning }) {
     </>
   );
 }
-
-// Historical comparison uses actual saved diagnostic records.
-function HistoryInsights({ history }) {
-  if (!history || history.length < 2) {
-    return (
-      <section className="panel" style={{ padding: 22, marginBottom: 20 }}>
-        <div className="panel-heading">
-          <div>
-            <h2>Historical Performance Analysis</h2>
-            <p>Compare network performance across diagnostic sessions.</p>
-          </div>
-        </div>
-        <p>
-          At least two saved diagnostic reports are required to calculate
-          performance changes. Run another network diagnosis to build your history.
-        </p>
-        <span className="waiting-label">AWAITING MORE MEASUREMENTS</span>
-      </section>
-    );
-  }
-
-  const latest = history[0];
-  const previous = history[1];
-
-  const metrics = [
-    {
-      label: "Latency",
-      current: latest.network_quality?.average_latency_ms,
-      previous: previous.network_quality?.average_latency_ms,
-      unit: "ms",
-      lowerIsBetter: true,
-    },
-    {
-      label: "Jitter",
-      current: latest.network_quality?.jitter_ms,
-      previous: previous.network_quality?.jitter_ms,
-      unit: "ms",
-      lowerIsBetter: true,
-    },
-    {
-      label: "Packet loss",
-      current: latest.network_quality?.packet_loss_percent,
-      previous: previous.network_quality?.packet_loss_percent,
-      unit: "%",
-      lowerIsBetter: true,
-    },
-    {
-      label: "Download speed",
-      current: latest.internet_speed?.download_mbps,
-      previous: previous.internet_speed?.download_mbps,
-      unit: "Mbps",
-      lowerIsBetter: false,
-    },
-    {
-      label: "Upload speed",
-      current: latest.internet_speed?.upload_mbps,
-      previous: previous.internet_speed?.upload_mbps,
-      unit: "Mbps",
-      lowerIsBetter: false,
-    },
-  ];
-
-  function compare(metric) {
-    const current = Number(metric.current);
-    const previousValue = Number(metric.previous);
-
-    if (
-      metric.current == null ||
-      metric.previous == null ||
-      !Number.isFinite(current) ||
-      !Number.isFinite(previousValue)
-    ) {
-      return { label: "Insufficient data", color: "#64748b" };
-    }
-
-    if (current === previousValue) {
-      return { label: "Unchanged", color: "#64748b" };
-    }
-
-    const improved = metric.lowerIsBetter
-      ? current < previousValue
-      : current > previousValue;
-
-    return improved
-      ? { label: "Improved", color: "#16a34a" }
-      : { label: "Worsened", color: "#dc2626" };
-  }
-
+function AgentConnectionPanel({
+  token,
+  setToken,
+  connected,
+  onConnect,
+  connecting,
+}) {
   return (
     <section className="panel" style={{ padding: 22, marginBottom: 20 }}>
       <div className="panel-heading">
         <div>
-          <h2>Historical Performance Analysis</h2>
-          <p>Latest diagnostic report compared with the previous report.</p>
+          <h2>Local Diagnostic Agent</h2>
+          <p>Connect this website to the diagnostic agent running on your computer.</p>
         </div>
-        <span className="chart-period">LATEST VS PREVIOUS</span>
+        <span className="chart-period">
+          {connected ? "CONNECTED" : "NOT CONNECTED"}
+        </span>
       </div>
 
-      <div className="metric-grid">
-        {metrics.map((metric) => {
-          const result = compare(metric);
+      <label htmlFor="agent-token" style={{ display: "block", fontWeight: 600, marginBottom: 8 }}>
+        Private connection token
+      </label>
 
-          return (
-            <article className="metric-card" key={metric.label}>
-              <div className="metric-top">
-                <span>{metric.label}</span>
-              </div>
-              <div className="metric-value" style={{ fontSize: 23 }}>
-                {metric.current == null ? "--" : Number(metric.current).toFixed(2)}
-                <small>{metric.unit}</small>
-              </div>
-              <div className="metric-note">
-                Previous: {metric.previous == null ? "--" : Number(metric.previous).toFixed(2)} {metric.unit}
-              </div>
-              <div style={{ marginTop: 10, fontWeight: 700, color: result.color, fontSize: 13 }}>
-                {result.label}
-              </div>
-            </article>
-          );
-        })}
-      </div>
+      <input
+        id="agent-token"
+        type="password"
+        value={token}
+        onChange={(event) => setToken(event.target.value)}
+        placeholder="Paste your local agent token here"
+        autoComplete="off"
+        spellCheck="false"
+        style={{
+          width: "100%",
+          padding: 12,
+          border: "1px solid var(--border-color, #d1d5db)",
+          borderRadius: 8,
+          marginBottom: 12,
+          boxSizing: "border-box",
+        }}
+      />
 
-      <p className="metric-note" style={{ marginTop: 16 }}>
-        Comparisons use consecutive saved measurements. An improvement or
-        deterioration indicates a measured difference; it does not establish
-        the cause of that difference.
+      <button
+        type="button"
+        className="primary-button"
+        onClick={onConnect}
+        disabled={connecting || !token.trim()}
+      >
+        {connecting
+          ? "Connecting..."
+          : connected
+            ? "Check connection again"
+            : "Connect local agent"}
+      </button>
+
+      <p className="metric-note" style={{ marginTop: 12 }}>
+        Your token is kept in this browser session only. Do not share it with anyone.
+        Keep the Python agent running while using diagnostics.
+      </p>
+
+      <p style={{
+        marginTop: 10,
+        fontWeight: 600,
+        color: connected ? "#16a34a" : "#b7791f",
+      }}>
+        {connected
+          ? "Local diagnostic agent is connected."
+          : "Connect your local agent to start testing this computer's network."}
       </p>
     </section>
   );
 }
 
-function TrendPanel({ history }) {
-  const metrics = [
-    {
-      label: "Latency",
-      unit: "ms",
-      getValue: (item) => item.network_quality?.average_latency_ms,
-    },
-    {
-      label: "Jitter",
-      unit: "ms",
-      getValue: (item) => item.network_quality?.jitter_ms,
-    },
-    {
-      label: "Packet loss",
-      unit: "%",
-      getValue: (item) => item.network_quality?.packet_loss_percent,
-    },
-    {
-      label: "Download",
-      unit: "Mbps",
-      getValue: (item) => item.internet_speed?.download_mbps,
-    },
-    {
-      label: "Upload",
-      unit: "Mbps",
-      getValue: (item) => item.internet_speed?.upload_mbps,
-    },
-  ];
-
-  return (
-    <section className="panel" style={{ padding: 22, marginBottom: 20 }}>
-      <div className="panel-heading">
-        <div>
-          <h2>Performance trends</h2>
-          <p>Historical measurements from saved diagnostic sessions.</p>
-        </div>
-        <span className="chart-period">{history.length} SAVED RUNS</span>
-      </div>
-
-      {history.length === 0 ? (
-        <p>No saved diagnostic measurements are available yet.</p>
-      ) : (
-        <div style={{ display: "grid", gap: 22 }}>
-          {metrics.map((metric) => {
-            const values = [...history]
-              .reverse()
-              .map((item) => Number(metric.getValue(item)))
-              .filter((value) => Number.isFinite(value));
-
-            const max = Math.max(...values, 1);
-
-            return (
-              <div key={metric.label}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 9 }}>
-                  <strong>{metric.label}</strong>
-                  <span className="metric-note">
-                    {values.length ? `${values[values.length - 1].toFixed(2)} ${metric.unit} latest` : "No data"}
-                  </span>
-                </div>
-
-                <div style={{
-                  display: "flex",
-                  alignItems: "end",
-                  gap: 7,
-                  height: 76,
-                  borderBottom: "1px solid var(--border-color, #e2e8f0)",
-                  paddingBottom: 3,
-                }}>
-                  {values.map((value, index) => (
-                    <div
-                      key={`${metric.label}-${index}`}
-                      title={`Run ${index + 1}: ${value} ${metric.unit}`}
-                      style={{
-                        flex: 1,
-                        minWidth: 5,
-                        height: `${Math.max(5, (value / max) * 68)}px`,
-                        background: "#5684d8",
-                        borderRadius: "5px 5px 0 0",
-                      }}
-                    />
-                  ))}
-                </div>
-
-                <div className="metric-note" style={{ marginTop: 5 }}>
-                  Earlier runs → Latest run
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <p className="metric-note" style={{ marginTop: 16 }}>
-        Bars show the relative value within each metric. Lower latency, jitter
-        and packet loss are generally preferable; higher throughput is
-        generally preferable.
-      </p>
-    </section>
-  );
-}
 function ReportsPage({
   diagnostics,
   history,
@@ -997,6 +826,7 @@ function ReportsPage({
                 : "No report generated yet."}
             </p>
           </div>
+
           <button
             type="button"
             className="secondary-button"
@@ -1006,6 +836,7 @@ function ReportsPage({
             Download JSON report
           </button>
         </div>
+
         {!diagnostics && <p>Run a network diagnosis to create your first report.</p>}
       </section>
 
@@ -1013,7 +844,7 @@ function ReportsPage({
         <div className="panel-heading">
           <div>
             <h2>Saved diagnostic history</h2>
-            <p>Records retrieved from your SQLite database.</p>
+            <p>Records stored locally in this browser.</p>
           </div>
           <span className="chart-period">{history.length} RECORDS</span>
         </div>
@@ -1021,18 +852,26 @@ function ReportsPage({
         {history.length ? (
           <div style={{ display: "grid", gap: 12 }}>
             {history.map((item, index) => (
-              <div className="module-feature" key={item.id ?? `${item.timestamp}-${index}`}>
+              <div
+                className="module-feature"
+                key={item.id ?? `${item.timestamp}-${index}`}
+              >
                 <span>{String(index + 1).padStart(2, "0")}</span>
+
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <strong>
-                    {item.timestamp ? new Date(item.timestamp).toLocaleString() : "Date unavailable"}
+                    {item.timestamp
+                      ? new Date(item.timestamp).toLocaleString()
+                      : "Date unavailable"}
                   </strong>
+
                   <small>
                     Latency: {formatMetric(item.network_quality?.average_latency_ms, "ms")} ·
                     Download: {formatMetric(item.internet_speed?.download_mbps, "Mbps")} ·
                     Packet loss: {formatMetric(item.network_quality?.packet_loss_percent, "%")}
                   </small>
                 </div>
+
                 <button
                   type="button"
                   className="secondary-button"
@@ -1100,90 +939,154 @@ function App() {
   const [history, setHistory] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
 
-  // Load saved diagnostic records from SQLite.
-  async function loadHistory() {
-    try {
-      const response = await fetch("/api/diagnostics/history");
+  const [agentToken, setAgentToken] = useState("");
+  const [agentConnected, setAgentConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
 
-      if (!response.ok) {
-        throw new Error(`History server returned ${response.status}`);
-      }
-
-      const rows = await response.json();
-      const records = Array.isArray(rows)
-        ? rows.map(normalizeHistoryRow)
-        : [];
-
-      records.sort((a, b) => {
-        const aId = Number(a.id) || 0;
-        const bId = Number(b.id) || 0;
-        return bId - aId;
-      });
-
-      setHistory(records);
-
-      // Always use the newest saved database record.
-      if (records.length > 0) {
-        setDiagnostics(records[0]);
-      }
-    } catch (error) {
-      console.error("Unable to load diagnostic history:", error);
-      setNotice("Unable to load saved history. Check that the backend is running.");
-    }
-  }
+  const AGENT_URL = "http://127.0.0.1:8765";
+  const HISTORY_KEY = "netsense_local_diagnostic_history";
 
   useEffect(() => {
-    // Fetch history immediately when the dashboard opens.
-    loadHistory();
+    try {
+      const savedHistory = JSON.parse(
+        localStorage.getItem(HISTORY_KEY) || "[]"
+      );
 
-    // Check SQLite for new records every five seconds.
-    const refreshInterval = window.setInterval(() => {
-      loadHistory();
-    }, 5000);
+      if (Array.isArray(savedHistory)) {
+        setHistory(savedHistory);
 
-    // Stop the timer when the component is removed.
-    return () => {
-      window.clearInterval(refreshInterval);
-    };
+        if (savedHistory.length > 0) {
+          setDiagnostics(savedHistory[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Unable to load local history:", error);
+    }
   }, []);
+
+  function saveHistory(report) {
+    const record = {
+      ...report,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: report.timestamp || new Date().toISOString(),
+    };
+
+    setHistory((previous) => {
+      const updated = [record, ...previous].slice(0, 50);
+
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+      } catch (error) {
+        console.error("Unable to save diagnostic history:", error);
+        setNotice("Report completed, but browser storage is full or unavailable.");
+      }
+
+      return updated;
+    });
+
+    return record;
+  }
 
   function handleNavigation(page) {
     setActivePage(page);
     setNotice("");
   }
 
-  async function handleRunDiagnosis() {
-    if (isRunning) return;
+  async function handleConnect() {
+    if (!agentToken.trim()) {
+      setNotice("Please enter your local agent token.");
+      return;
+    }
 
-    setIsRunning(true);
-    setNotice("Running live network diagnostics. Please wait...");
+    setIsConnecting(true);
+    setAgentConnected(false);
+    setNotice("Checking connection to your local diagnostic agent...");
 
     try {
-      const response = await fetch("/api/diagnostics/run");
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Server returned error ${response.status}`);
-      }
+      const response = await fetch(`${AGENT_URL}/health`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${agentToken.trim()}`,
+        },
+        cache: "no-store",
+      });
 
       const data = await response.json();
 
-      if (!data.network_quality || !data.internet_speed) {
-        throw new Error("The diagnostic server returned incomplete measurements.");
+      if (!response.ok || data.status !== "ready") {
+        throw new Error(data.message || `Connection failed (${response.status}).`);
       }
 
-      setDiagnostics(data);
-      setNotice("Network diagnosis completed successfully. Live measurements updated.");
+      setAgentConnected(true);
+      setNotice("Successfully connected to your local diagnostic agent.");
+    } catch (error) {
+      console.error("Agent connection error:", error);
+      setAgentConnected(false);
 
-      // Refresh the saved database history after a successful test.
-      await loadHistory();
+      setNotice(
+        `Unable to connect: ${error.message}. Check that the Python agent is running, the token is correct, and your browser permits local network access.`
+      );
+    } finally {
+      setIsConnecting(false);
+    }
+  }
 
+  async function handleRunDiagnosis() {
+    if (isRunning) return;
+
+    if (!agentConnected || !agentToken.trim()) {
+      setNotice("Please connect your local diagnostic agent before running a diagnosis.");
+      setActivePage("overview");
+      return;
+    }
+
+    setIsRunning(true);
+    setNotice("Running diagnostics on your computer. Please wait...");
+
+    try {
+      const response = await fetch(`${AGENT_URL}/diagnose`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${agentToken.trim()}`,
+        },
+        cache: "no-store",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status !== "success") {
+        throw new Error(data.message || `Diagnostic failed (${response.status}).`);
+      }
+
+      const report = data.report;
+
+      if (
+        !report ||
+        typeof report !== "object" ||
+        !report.network_quality ||
+        !report.internet_speed
+      ) {
+        throw new Error("The diagnostic engine returned incomplete measurements.");
+      }
+
+      const savedReport = saveHistory(report);
+
+      setDiagnostics(savedReport);
+      setNotice("Network diagnosis completed successfully. Your report has been saved in this browser.");
       setActivePage("overview");
     } catch (error) {
       console.error("Network diagnosis error:", error);
+
       setNotice(
-        `Unable to complete diagnosis: ${error.message}. Check that the backend and Python engine are running.`
+        `Unable to complete diagnosis: ${error.message}. Check your local agent and network connection.`
       );
+
+      if (
+        error.message.toLowerCase().includes("failed to fetch") ||
+        error.message.toLowerCase().includes("network")
+      ) {
+        setAgentConnected(false);
+      }
     } finally {
       setIsRunning(false);
     }
@@ -1211,6 +1114,7 @@ function App() {
         activePage={activePage}
         onNavigate={handleNavigation}
         isRunning={isRunning}
+        agentConnected={agentConnected}
       />
 
       <main className="main-content">
@@ -1221,6 +1125,7 @@ function App() {
             <div className="notice" role="status">
               <span aria-hidden="true">ⓘ</span>
               <span>{notice}</span>
+
               <button
                 type="button"
                 aria-label="Dismiss notification"
@@ -1230,6 +1135,14 @@ function App() {
               </button>
             </div>
           )}
+
+          <AgentConnectionPanel
+            token={agentToken}
+            setToken={setAgentToken}
+            connected={agentConnected}
+            onConnect={handleConnect}
+            connecting={isConnecting}
+          />
 
           {activePage === "overview" ? (
             <OverviewPage
@@ -1252,7 +1165,7 @@ function App() {
 
           <footer className="page-footer">
             <span>NetSense AI · Explainable Home & Last-Mile Connectivity Diagnosis</span>
-            <span>Prototype build 0.3</span>
+            <span>Prototype build 0.4 · Local Agent</span>
           </footer>
         </div>
       </main>

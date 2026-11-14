@@ -235,15 +235,27 @@ Potential future improvements include:
 - Enhanced predictive monitoring.
 - Additional diagnostic visualizations.
 - Broader testing across different routers and internet service providers.
-
 ## 15. Team Information
 
-**Project:** NetSense AI  
+**Project Name:** NetSense AI  
+**Team Name:** RAGNAROK  
 **Hackathon:** AIORI-3 Hackathon 2026  
-**Problem Statement:** PS-015
+**Problem Statement:** PS-015  
 
-**Repository:**  
-https://github.com/shreemsamriya-debug/-NetSense-AI
+### Team Members
+
+| Name | Role |
+|---|---|
+| Shreem Samriya | Project Developer & Technical Lead |
+| Umaima Darugar | Research & Documentation |
+
+### Development Acknowledgement
+
+NetSense AI was independently designed and developed by Shreem Samriya, including the project's technical implementation and integration.
+
+### Repository
+
+[NetSense AI – GitHub Repository](https://github.com/shreemsamriya-debug/-NetSense-AI)
 
 ---
 
